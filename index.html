@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>나만의 테라리움</title>
 <meta name="description" content="유리병 속에 흙을 깔고 식물을 심어 나만의 작은 정원을 꾸며 보세요.">
+<meta property="og:title" content="나만의 테라리움">
+<meta property="og:description" content="유리병 속에 흙을 깔고 식물을 심어 나만의 작은 정원을 꾸며 보세요.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%BF%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #eef3ec; --card: #ffffff; --text: #1f2a1f; --muted: #637063;
@@ -31,9 +35,12 @@
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; transition: background .4s; }
   .stage { position: sticky; top: 12px; }
   @media (max-width: 820px) { .stage { position: static; } }
-  svg#jar { width: 100%; height: auto; display: block; touch-action: none; user-select: none; }
-  .item { cursor: grab; }
+  svg#jar { width: 100%; height: auto; display: block; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+  .item { cursor: grab; outline: none; }
   .item:active { cursor: grabbing; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .tools { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .tools .btn { padding: 8px 10px; }
   .name-row { display: flex; gap: 8px; margin-top: 10px; }
   input[type=text] {
     flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--bg);
@@ -75,8 +82,17 @@
 
 <main>
   <section class="card stage">
-    <svg id="jar" viewBox="0 0 400 480" aria-label="테라리움 유리병"></svg>
+    <svg id="jar" viewBox="0 0 400 480" role="group" aria-label="테라리움 유리병. 식물을 누르거나 Tab으로 고른 뒤 끌거나 방향키로 옮길 수 있어요."></svg>
+    <div class="tools sel-box" id="selbox">
+      <span id="seltext">병 안의 식물을 눌러서 골라 주세요.</span>
+      <button class="btn" id="bigger" disabled>크게</button>
+      <button class="btn" id="smaller" disabled>작게</button>
+      <button class="btn" id="flip" disabled>좌우 반전</button>
+      <button class="btn" id="front" disabled>맨 앞으로</button>
+      <button class="btn" id="remove" disabled>빼기</button>
+    </div>
     <div class="name-row">
+      <label for="name" class="sr-only">테라리움 이름</label>
       <input type="text" id="name" maxlength="20" placeholder="테라리움 이름 짓기 (예: 초록 숲속)">
     </div>
   </section>
@@ -87,20 +103,10 @@
     <div class="grid" id="layers"></div>
 
     <h2>2. 심고 꾸미기</h2>
-    <p class="hint">누르면 병에 들어가요. 병 안에서 끌어서 옮기세요.</p>
+    <p class="hint">누르면 병에 들어가요. 병 안에서 끌어서 옮기고, 병 바로 아래 버튼으로 크기를 바꿔요.</p>
     <div class="grid" id="palette"></div>
 
-    <h2>3. 고른 것 다듬기</h2>
-    <div class="sel-box" id="selbox">
-      <span id="seltext">병 안의 식물을 눌러서 골라 주세요.</span>
-      <button class="btn" id="bigger" disabled>크게</button>
-      <button class="btn" id="smaller" disabled>작게</button>
-      <button class="btn" id="flip" disabled>좌우 반전</button>
-      <button class="btn" id="front" disabled>맨 앞으로</button>
-      <button class="btn" id="remove" disabled>빼기</button>
-    </div>
-
-    <h2>4. 마무리</h2>
+    <h2>3. 마무리</h2>
     <div class="btns">
       <button class="btn" id="night">🌙 밤으로</button>
       <button class="btn" id="random">🎲 랜덤 꾸미기</button>
@@ -210,12 +216,18 @@ function save() { try { localStorage.setItem("terrarium-v1", JSON.stringify(stat
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem("terrarium-v1") || "null");
-    if (s && Array.isArray(s.items)) {
-      state = Object.assign(state, s);
-      state.layers = state.layers.filter(k => LAYERS[k]);
-      state.items = state.items.filter(it => ITEMS[it.type]);
-      nextId = state.items.reduce((m, it) => Math.max(m, it.id), 0) + 1;
+    if (!s || typeof s !== "object") return;
+    const num = (v, d) => (typeof v === "number" && isFinite(v) ? v : d);
+    if (Array.isArray(s.layers)) state.layers = s.layers.filter(k => typeof k === "string" && LAYERS[k]);
+    if (Array.isArray(s.items)) {
+      state.items = s.items
+        .filter(it => it && typeof it === "object" && ITEMS[it.type])
+        .map((it, i) => ({ id: i + 1, type: it.type, x: num(it.x, 200), y: num(it.y, 380),
+                           scale: Math.min(2.2, Math.max(0.4, num(it.scale, 1))), flip: !!it.flip }));
     }
+    state.name = typeof s.name === "string" ? s.name.slice(0, 20) : "";
+    state.night = !!s.night;
+    nextId = state.items.length + 1;
   } catch (e) {}
 }
 
@@ -248,7 +260,7 @@ function render() {
   let itemsSvg = "";
   state.items.forEach(it => {
     const sx = it.flip ? -it.scale : it.scale;
-    itemsSvg += `<g class="item" data-id="${it.id}" transform="translate(${it.x},${it.y}) scale(${sx},${it.scale})">${ITEMS[it.type].draw()}</g>`;
+    itemsSvg += `<g class="item" data-id="${it.id}" tabindex="0" role="button" aria-label="${ITEMS[it.type].label}" transform="translate(${it.x},${it.y}) scale(${sx},${it.scale})"><g class="art">${ITEMS[it.type].draw()}</g></g>`;
   });
 
   let flies = "";
@@ -289,6 +301,14 @@ function render() {
       <text x="200" y="469" text-anchor="middle" font-size="13" font-weight="600" fill="${night ? "#eef2f6" : "#3a3a2a"}" font-family="Apple SD Gothic Neo, Malgun Gothic, sans-serif">${escapeXml(label)}</text></g>` : ""}
     <g id="selection"></g>
   `;
+  // 손가락으로 집기 쉽게, 식물마다 보이지 않는 넓은 터치 영역을 깔아 둠
+  svg.querySelectorAll(".item").forEach(node => {
+    const b = node.querySelector(".art").getBBox(), pad = 14;
+    const r = document.createElementNS(NS, "rect");
+    Object.entries({ x: b.x - pad, y: b.y - pad, width: b.width + pad * 2, height: b.height + pad * 2, fill: "transparent" })
+      .forEach(([k, v]) => r.setAttribute(k, v));
+    node.insertBefore(r, node.firstChild);
+  });
   drawSelection();
   renderPanels();
   save();
@@ -303,7 +323,7 @@ function drawSelection() {
   if (selectedId == null) return;
   const node = svg.querySelector(`.item[data-id="${selectedId}"]`);
   if (!node) return;
-  const b = node.getBBox(), it = state.items.find(i => i.id === selectedId);
+  const b = node.querySelector(".art").getBBox(), it = state.items.find(i => i.id === selectedId);
   const w = b.width * it.scale, h = b.height * it.scale;
   const x = it.x + (it.flip ? -(b.x + b.width) : b.x) * it.scale, y = it.y + b.y * it.scale;
   const r = document.createElementNS(NS, "rect");
@@ -329,10 +349,11 @@ Object.keys(LAYERS).forEach(k => {
   b.className = "tile"; b.type = "button"; b.dataset.key = k;
   b.innerHTML = swatch(k) + `<span>${LAYERS[k].label}</span>`;
   b.onclick = () => {
+    const before = groundY();
     const i = state.layers.indexOf(k);
     if (i >= 0) state.layers.splice(i, 1); else state.layers.push(k);
-    const gy = groundY();
-    state.items.forEach(it => { if (it.y > gy + 30) it.y = gy + 4; });
+    const delta = groundY() - before;   // 바닥이 높아지면 식물도 같이 올라감
+    state.items.forEach(it => { it.y = Math.max(110, Math.min(JAR.bottom - 4, it.y + delta)); });
     render();
   };
   layersBox.appendChild(b);
@@ -351,6 +372,7 @@ function renderPanels() {
   layersBox.querySelectorAll(".tile").forEach(t => {
     const i = state.layers.indexOf(t.dataset.key);
     t.classList.toggle("on", i >= 0);
+    t.setAttribute("aria-pressed", i >= 0 ? "true" : "false");
     t.querySelector("span").textContent = LAYERS[t.dataset.key].label + (i >= 0 ? ` ${i + 1}` : "");
   });
   const it = state.items.find(i => i.id === selectedId);
@@ -399,9 +421,40 @@ svg.addEventListener("pointermove", e => {
 function endDrag() { if (drag) { drag = null; save(); } }
 svg.addEventListener("pointerup", endDrag);
 svg.addEventListener("pointercancel", endDrag);
+// 식물을 집었을 때만 화면 스크롤을 막고, 빈 곳을 쓸면 평소처럼 스크롤됨
+svg.addEventListener("touchstart", e => { if (e.target.closest(".item")) e.preventDefault(); }, { passive: false });
+
+/* ---------- 키보드 ---------- */
+function focusItem(id) { const n = svg.querySelector(`.item[data-id="${id}"]`); if (n) n.focus({ preventScroll: true }); }
+svg.addEventListener("focusin", e => {
+  const node = e.target.closest && e.target.closest(".item");
+  if (node && +node.dataset.id !== selectedId) { selectedId = +node.dataset.id; drawSelection(); renderPanels(); }
+});
+svg.addEventListener("keydown", e => {
+  const node = e.target.closest && e.target.closest(".item");
+  if (!node) return;
+  const it = state.items.find(i => i.id === +node.dataset.id);
+  const step = e.shiftKey ? 20 : 6;
+  const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+  if (moves[e.key]) {
+    e.preventDefault();
+    it.x = Math.max(JAR.left + 6, Math.min(JAR.right - 6, it.x + moves[e.key][0]));
+    it.y = Math.max(110, Math.min(JAR.bottom - 4, it.y + moves[e.key][1]));
+    const sx = it.flip ? -it.scale : it.scale;
+    node.setAttribute("transform", `translate(${it.x},${it.y}) scale(${sx},${it.scale})`);
+    drawSelection(); save();
+  } else if (e.key === "+" || e.key === "=") { e.preventDefault(); document.getElementById("bigger").click(); }
+  else if (e.key === "-") { e.preventDefault(); document.getElementById("smaller").click(); }
+});
 
 /* ---------- 버튼 ---------- */
-function withSel(fn) { const it = state.items.find(i => i.id === selectedId); if (it) { fn(it); render(); } }
+function withSel(fn) {
+  const it = state.items.find(i => i.id === selectedId);
+  if (!it) return;
+  const hadFocus = document.activeElement && document.activeElement.closest && document.activeElement.closest(".item");
+  fn(it); render();
+  if (hadFocus && selectedId != null) focusItem(selectedId);
+}
 document.getElementById("bigger").onclick = () => withSel(it => it.scale = Math.min(2.2, +(it.scale + 0.15).toFixed(2)));
 document.getElementById("smaller").onclick = () => withSel(it => it.scale = Math.max(0.4, +(it.scale - 0.15).toFixed(2)));
 document.getElementById("flip").onclick = () => withSel(it => it.flip = !it.flip);
@@ -449,6 +502,10 @@ document.getElementById("save").onclick = () => {
     a.download = (state.name.trim() || "my-terrarium") + ".png";
     a.href = c.toDataURL("image/png"); a.click();
     selectedId = prev; drawSelection();
+  };
+  img.onerror = () => {
+    selectedId = prev; drawSelection();
+    alert("이미지를 만들지 못했어요. 화면을 캡처해서 저장해 주세요.");
   };
   img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(data);
 };
