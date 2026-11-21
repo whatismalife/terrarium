@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>나만의 테라리움</title>
+<meta name="description" content="유리병 속에 흙을 깔고 식물을 심어 나만의 작은 정원을 꾸며 보세요.">
+<style>
+  :root {
+    --bg: #eef3ec; --card: #ffffff; --text: #1f2a1f; --muted: #637063;
+    --line: #d9e2d6; --accent: #2f7d4f; --accent-soft: #e3f1e7;
+  }
+  body.night {
+    --bg: #10161f; --card: #18202b; --text: #eef2f6; --muted: #9aa6b4;
+    --line: #2a3442; --accent: #7fd49b; --accent-soft: #1d3326;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--text); transition: background .4s, color .4s;
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", sans-serif;
+  }
+  header { max-width: 1040px; margin: 0 auto; padding: 32px 16px 4px; }
+  h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  main {
+    max-width: 1040px; margin: 0 auto; padding: 16px;
+    display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start;
+  }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; transition: background .4s; }
+  .stage { position: sticky; top: 12px; }
+  @media (max-width: 820px) { .stage { position: static; } }
+  svg#jar { width: 100%; height: auto; display: block; touch-action: none; user-select: none; }
+  .item { cursor: grab; }
+  .item:active { cursor: grabbing; }
+  .name-row { display: flex; gap: 8px; margin-top: 10px; }
+  input[type=text] {
+    flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+  }
+  h2 { font-size: 15px; margin: 18px 0 8px; }
+  h2:first-child { margin-top: 0; }
+  .hint { color: var(--muted); font-size: 13px; margin: -4px 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+  .tile {
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 12px;
+    padding: 6px 4px 8px; font: inherit; font-size: 13px; cursor: pointer; display: flex; flex-direction: column;
+    align-items: center; gap: 2px; transition: transform .1s, border-color .2s;
+  }
+  .tile:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .tile.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .tile svg { width: 52px; height: 52px; }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn {
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 10px;
+    padding: 8px 12px; font: inherit; font-size: 14px; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--card); font-weight: 600; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .sel-box { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 40px; }
+  .sel-box span { color: var(--muted); font-size: 14px; }
+  .count { color: var(--muted); font-size: 13px; margin-top: 10px; }
+  footer { max-width: 1040px; margin: 0 auto; padding: 4px 16px 36px; color: var(--muted); font-size: 13px; }
+  @keyframes floaty { 0%,100% { transform: translate(0,0); opacity: .2 } 50% { transform: translate(6px,-14px); opacity: 1 } }
+  .firefly { animation: floaty 3.2s ease-in-out infinite; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌿 나만의 테라리움</h1>
+  <p>유리병에 흙을 깔고, 식물을 심고, 끌어서 옮겨 보세요.</p>
+</header>
+
+<main>
+  <section class="card stage">
+    <svg id="jar" viewBox="0 0 400 480" aria-label="테라리움 유리병"></svg>
+    <div class="name-row">
+      <input type="text" id="name" maxlength="20" placeholder="테라리움 이름 짓기 (예: 초록 숲속)">
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>1. 바닥 깔기</h2>
+    <p class="hint">누른 순서대로 아래부터 쌓여요. 다시 누르면 빠져요.</p>
+    <div class="grid" id="layers"></div>
+
+    <h2>2. 심고 꾸미기</h2>
+    <p class="hint">누르면 병에 들어가요. 병 안에서 끌어서 옮기세요.</p>
+    <div class="grid" id="palette"></div>
+
+    <h2>3. 고른 것 다듬기</h2>
+    <div class="sel-box" id="selbox">
+      <span id="seltext">병 안의 식물을 눌러서 골라 주세요.</span>
+      <button class="btn" id="bigger" disabled>크게</button>
+      <button class="btn" id="smaller" disabled>작게</button>
+      <button class="btn" id="flip" disabled>좌우 반전</button>
+      <button class="btn" id="front" disabled>맨 앞으로</button>
+      <button class="btn" id="remove" disabled>빼기</button>
+    </div>
+
+    <h2>4. 마무리</h2>
+    <div class="btns">
+      <button class="btn" id="night">🌙 밤으로</button>
+      <button class="btn" id="random">🎲 랜덤 꾸미기</button>
+      <button class="btn" id="clear">비우기</button>
+      <button class="btn primary" id="save">🖼️ 이미지로 저장</button>
+    </div>
+    <p class="count" id="count"></p>
+  </section>
+</main>
+
+<footer>AI 소모임 2주차 과제 · Claude Code로 만들고 GitHub Pages로 배포했습니다. 꾸민 내용은 이 브라우저에 자동 저장돼요.</footer>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById("jar");
+
+/* ---------- 바닥재 ---------- */
+const LAYERS = {
+  pebble: { label: "자갈", color: "#9aa3ab", dot: "#c5ccd2", h: 26 },
+  sand:   { label: "모래", color: "#e6c98f", dot: "#f3dfb3", h: 22 },
+  charcoal:{ label: "숯", color: "#3b3b3f", dot: "#5a5a60", h: 12 },
+  soil:   { label: "흙", color: "#6b4a2f", dot: "#86603f", h: 34 },
+  moss:   { label: "이끼", color: "#5c9a45", dot: "#79b85d", h: 12 },
+  blue:   { label: "파란 모래", color: "#7fb3d9", dot: "#a9cfea", h: 18 },
+};
+
+/* ---------- 식물·소품 (바닥 중심 (0,0) 기준으로 위로 그림) ---------- */
+const ITEMS = {
+  succulent: { label: "다육이", draw: () => `
+    <ellipse cx="0" cy="-6" rx="26" ry="9" fill="#5f9e6e"/>
+    <path d="M-24,-8 Q-30,-26 -10,-18 Z" fill="#7bb88a"/><path d="M24,-8 Q30,-26 10,-18 Z" fill="#7bb88a"/>
+    <path d="M-16,-12 Q-14,-36 0,-20 Q14,-36 16,-12 Z" fill="#8fcb9b"/>
+    <path d="M-8,-16 Q0,-40 8,-16 Z" fill="#a9dcb2"/>
+    <path d="M-2,-30 Q0,-36 2,-30" stroke="#e58f9b" stroke-width="2" fill="none"/>` },
+  cactus: { label: "선인장", draw: () => `
+    <rect x="-11" y="-70" width="22" height="70" rx="11" fill="#4f9a5a"/>
+    <path d="M-11,-34 h-10 a8,8 0 0 1 -8,-8 v-14 a5,5 0 0 1 10,0 v10 h8" fill="#4f9a5a"/>
+    <path d="M11,-44 h9 a7,7 0 0 0 7,-7 v-10 a5,5 0 0 0 -10,0 v7 h-6" fill="#4f9a5a"/>
+    <path d="M-4,-62 v54 M4,-62 v54" stroke="#3d7d47" stroke-width="2"/>
+    <circle cx="0" cy="-72" r="5" fill="#f08bb0"/>` },
+  fern: { label: "고사리", draw: () => {
+    let s = "";
+    [[-34,-1],[-12,1],[10,-1],[30,1]].forEach(([ang, d]) => {
+      s += `<g transform="rotate(${ang})"><path d="M0,0 Q${6*d},-40 0,-72" stroke="#2f7d3c" stroke-width="2.5" fill="none"/>`;
+      for (let i = 1; i <= 7; i++) {
+        const y = -i * 9.5, w = 14 - i * 1.4;
+        s += `<ellipse cx="${-w/2}" cy="${y}" rx="${w/2}" ry="3" fill="#4caf5c" transform="rotate(-20 ${-w/2} ${y})"/>
+              <ellipse cx="${w/2}" cy="${y}" rx="${w/2}" ry="3" fill="#5fc06e" transform="rotate(20 ${w/2} ${y})"/>`;
+      }
+      s += `</g>`;
+    });
+    return s; } },
+  mossball: { label: "이끼볼", draw: () => `
+    <circle cx="0" cy="-16" r="17" fill="#4f8f3a"/>
+    <circle cx="-7" cy="-22" r="6" fill="#68a84f"/><circle cx="6" cy="-12" r="5" fill="#68a84f"/>
+    <circle cx="5" cy="-25" r="3" fill="#86c46a"/><circle cx="-9" cy="-10" r="3" fill="#3c7a2c"/>` },
+  rock: { label: "돌", draw: () => `
+    <path d="M-26,0 Q-30,-16 -14,-24 Q2,-32 18,-22 Q30,-14 26,0 Z" fill="#8c939b"/>
+    <path d="M-12,-20 Q2,-28 14,-20" stroke="#b4bac0" stroke-width="3" fill="none" stroke-linecap="round"/>` },
+  mushroom: { label: "버섯", draw: () => `
+    <path d="M-5,0 Q-7,-18 -4,-26 h8 Q7,-18 5,0 Z" fill="#f3e8d6"/>
+    <path d="M-22,-24 Q-20,-48 0,-48 Q20,-48 22,-24 Z" fill="#d9423b"/>
+    <circle cx="-9" cy="-36" r="3.5" fill="#fff"/><circle cx="7" cy="-40" r="3" fill="#fff"/><circle cx="12" cy="-29" r="2.5" fill="#fff"/>` },
+  flower: { label: "꽃", draw: () => {
+    let p = "";
+    for (let i = 0; i < 6; i++) p += `<ellipse cx="0" cy="-9" rx="5" ry="9" fill="#f6a5c0" transform="rotate(${i*60})"/>`;
+    return `<path d="M0,0 Q-4,-28 0,-52" stroke="#3f8f4a" stroke-width="3" fill="none"/>
+      <ellipse cx="-8" cy="-22" rx="9" ry="4" fill="#5daf62" transform="rotate(-30 -8 -22)"/>
+      <g transform="translate(0,-56)">${p}<circle r="5" fill="#ffd25a"/></g>`; } },
+  crystal: { label: "수정", draw: () => `
+    <path d="M-14,0 L-18,-22 L-10,-40 L-4,-18 Z" fill="#b48ae6"/>
+    <path d="M-6,0 L-4,-34 L4,-52 L10,-32 L8,0 Z" fill="#c9a6f2"/>
+    <path d="M4,-52 L10,-32 L8,0 L2,0 Z" fill="#9d6fd9"/>
+    <path d="M8,0 L14,-18 L22,-10 L18,0 Z" fill="#b48ae6"/>` },
+  house: { label: "작은 집", draw: () => `
+    <rect x="-18" y="-28" width="36" height="28" fill="#f4e3c3"/>
+    <path d="M-24,-26 L0,-48 L24,-26 Z" fill="#c0563e"/>
+    <rect x="-6" y="-16" width="12" height="16" rx="6" fill="#7a4b2a"/>
+    <rect x="8" y="-22" width="7" height="7" fill="#8fd0f0"/>` },
+  deer: { label: "아기 사슴", draw: () => `
+    <rect x="-12" y="-14" width="3" height="14" fill="#a86c3e"/><rect x="8" y="-14" width="3" height="14" fill="#a86c3e"/>
+    <ellipse cx="0" cy="-20" rx="16" ry="9" fill="#c98a52"/>
+    <circle cx="-6" cy="-20" r="2" fill="#f3dcc0"/><circle cx="3" cy="-23" r="2" fill="#f3dcc0"/>
+    <path d="M12,-24 L16,-36" stroke="#c98a52" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="19" cy="-39" rx="7" ry="5" fill="#c98a52"/>
+    <circle cx="21" cy="-40" r="1.3" fill="#2a1a10"/>
+    <path d="M16,-43 l-3,-7 M19,-44 l1,-8" stroke="#7a4b2a" stroke-width="1.6" stroke-linecap="round"/>` },
+  grass: { label: "풀", draw: () => `
+    <path d="M-14,0 Q-16,-22 -22,-34 Q-10,-20 -8,0 Z" fill="#6cbf5a"/>
+    <path d="M-6,0 Q-4,-30 -2,-44 Q4,-28 4,0 Z" fill="#58a84a"/>
+    <path d="M4,0 Q10,-20 20,-30 Q12,-14 12,0 Z" fill="#7fcf6a"/>` },
+  sprout: { label: "새싹", draw: () => `
+    <path d="M0,0 Q-1,-14 0,-22" stroke="#4f9a3a" stroke-width="3" fill="none"/>
+    <path d="M0,-22 Q-16,-30 -18,-18 Q-8,-14 0,-22 Z" fill="#7ccf62"/>
+    <path d="M0,-22 Q14,-34 18,-22 Q8,-16 0,-22 Z" fill="#8fdc72"/>` },
+};
+
+/* ---------- 상태 ---------- */
+let state = { layers: ["pebble", "charcoal", "soil", "moss"], items: [], name: "", night: false };
+let selectedId = null;
+let nextId = 1;
+
+const JAR = { left: 62, right: 338, bottom: 440 };
+function groundY() { return JAR.bottom - state.layers.reduce((s, k) => s + LAYERS[k].h, 0); }
+
+function save() { try { localStorage.setItem("terrarium-v1", JSON.stringify(state)); } catch (e) {} }
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem("terrarium-v1") || "null");
+    if (s && Array.isArray(s.items)) {
+      state = Object.assign(state, s);
+      state.layers = state.layers.filter(k => LAYERS[k]);
+      state.items = state.items.filter(it => ITEMS[it.type]);
+      nextId = state.items.reduce((m, it) => Math.max(m, it.id), 0) + 1;
+    }
+  } catch (e) {}
+}
+
+/* ---------- 그리기 ---------- */
+function wavy(y, seed) {
+  let d = `M40,${y}`;
+  for (let x = 40; x <= 360; x += 20) {
+    const dy = Math.sin((x + seed * 37) / 23) * 2.5;
+    d += ` Q${x + 10},${y + dy - 3} ${x + 20},${y + dy}`;
+  }
+  return d;
+}
+
+function render() {
+  const night = state.night;
+  document.body.classList.toggle("night", night);
+  document.getElementById("night").textContent = night ? "☀️ 낮으로" : "🌙 밤으로";
+
+  let layerSvg = "", y = JAR.bottom;
+  state.layers.forEach((k, i) => {
+    const L = LAYERS[k], top = y - L.h;
+    layerSvg += `<path d="${wavy(top, i)} L360,${y + 4} L40,${y + 4} Z" fill="${L.color}"/>`;
+    for (let n = 0; n < 14; n++) {
+      const cx = 70 + ((n * 53 + i * 31) % 260), cy = top + 4 + ((n * 7 + i * 5) % Math.max(4, L.h - 6));
+      layerSvg += `<circle cx="${cx}" cy="${cy}" r="${k === "pebble" ? 4 : 1.6}" fill="${L.dot}"/>`;
+    }
+    y = top;
+  });
+
+  let itemsSvg = "";
+  state.items.forEach(it => {
+    const sx = it.flip ? -it.scale : it.scale;
+    itemsSvg += `<g class="item" data-id="${it.id}" transform="translate(${it.x},${it.y}) scale(${sx},${it.scale})">${ITEMS[it.type].draw()}</g>`;
+  });
+
+  let flies = "";
+  if (night) {
+    for (let i = 0; i < 9; i++) {
+      const fx = 90 + ((i * 71) % 220), fy = 140 + ((i * 47) % 190);
+      flies += `<circle class="firefly" cx="${fx}" cy="${fy}" r="2.6" fill="#ffe98a" style="animation-delay:${(i * 0.37).toFixed(2)}s" filter="url(#glow)"/>`;
+    }
+  }
+
+  const bgTop = night ? "#0b1220" : "#f6faf4", bgBot = night ? "#16233a" : "#e3eee0";
+  const glass = night ? "rgba(150,190,255,0.10)" : "rgba(200,230,235,0.28)";
+  const rim = night ? "#7a8fb0" : "#9fb8bd";
+  const label = state.name.trim();
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${bgTop}"/><stop offset="1" stop-color="${bgBot}"/></linearGradient>
+      <clipPath id="inside"><rect x="${JAR.left}" y="92" width="${JAR.right - JAR.left}" height="${JAR.bottom - 92}" rx="52"/><rect x="102" y="62" width="196" height="60" rx="8"/></clipPath>
+      <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <rect width="400" height="480" fill="url(#bg)"/>
+    ${night ? `<circle cx="345" cy="45" r="16" fill="#f5f0c8"/><circle cx="352" cy="40" r="14" fill="${bgTop}"/>` : `<circle cx="352" cy="44" r="18" fill="#ffe08a" opacity=".85"/>`}
+    <ellipse cx="200" cy="${JAR.bottom + 14}" rx="150" ry="10" fill="#000" opacity="${night ? .35 : .08}"/>
+    <g clip-path="url(#inside)">
+      <rect x="40" y="60" width="320" height="400" fill="${glass}"/>
+      ${layerSvg}
+      ${itemsSvg}
+      ${flies}
+    </g>
+    <rect x="${JAR.left}" y="92" width="${JAR.right - JAR.left}" height="${JAR.bottom - 92}" rx="52" fill="none" stroke="${rim}" stroke-width="3" pointer-events="none"/>
+    <rect x="102" y="62" width="196" height="36" rx="8" fill="none" stroke="${rim}" stroke-width="3" pointer-events="none"/>
+    <rect x="94" y="46" width="212" height="22" rx="6" fill="${night ? "#5b4636" : "#a77b55"}"/>
+    <path d="M84,140 Q78,240 88,350" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none" opacity=".45" pointer-events="none"/>
+    <path d="M100,124 Q96,140 96,152" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none" opacity=".45" pointer-events="none"/>
+    ${label ? `<g pointer-events="none">
+      <rect x="130" y="452" width="140" height="24" rx="5" fill="${night ? "#2a3442" : "#fffaf0"}" stroke="${rim}"/>
+      <text x="200" y="469" text-anchor="middle" font-size="13" font-weight="600" fill="${night ? "#eef2f6" : "#3a3a2a"}" font-family="Apple SD Gothic Neo, Malgun Gothic, sans-serif">${escapeXml(label)}</text></g>` : ""}
+    <g id="selection"></g>
+  `;
+  drawSelection();
+  renderPanels();
+  save();
+}
+
+function escapeXml(s) { return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+function drawSelection() {
+  const g = svg.querySelector("#selection");
+  if (!g) return;
+  g.innerHTML = "";
+  if (selectedId == null) return;
+  const node = svg.querySelector(`.item[data-id="${selectedId}"]`);
+  if (!node) return;
+  const b = node.getBBox(), it = state.items.find(i => i.id === selectedId);
+  const w = b.width * it.scale, h = b.height * it.scale;
+  const x = it.x + (it.flip ? -(b.x + b.width) : b.x) * it.scale, y = it.y + b.y * it.scale;
+  const r = document.createElementNS(NS, "rect");
+  Object.entries({ x: x - 5, y: y - 5, width: w + 10, height: h + 10, rx: 8, fill: "none",
+    stroke: state.night ? "#7fd49b" : "#2f7d4f", "stroke-width": 2, "stroke-dasharray": "5 4", "pointer-events": "none" })
+    .forEach(([k, v]) => r.setAttribute(k, v));
+  g.appendChild(r);
+}
+
+/* ---------- 패널 ---------- */
+function preview(type) {
+  return `<svg viewBox="-40 -80 80 86">${ITEMS[type].draw()}</svg>`;
+}
+function swatch(k) {
+  const L = LAYERS[k];
+  return `<svg viewBox="0 0 52 52"><rect x="4" y="14" width="44" height="30" rx="8" fill="${L.color}"/>
+    <circle cx="16" cy="26" r="3" fill="${L.dot}"/><circle cx="32" cy="32" r="3" fill="${L.dot}"/><circle cx="38" cy="22" r="2" fill="${L.dot}"/></svg>`;
+}
+
+const layersBox = document.getElementById("layers");
+Object.keys(LAYERS).forEach(k => {
+  const b = document.createElement("button");
+  b.className = "tile"; b.type = "button"; b.dataset.key = k;
+  b.innerHTML = swatch(k) + `<span>${LAYERS[k].label}</span>`;
+  b.onclick = () => {
+    const i = state.layers.indexOf(k);
+    if (i >= 0) state.layers.splice(i, 1); else state.layers.push(k);
+    const gy = groundY();
+    state.items.forEach(it => { if (it.y > gy + 30) it.y = gy + 4; });
+    render();
+  };
+  layersBox.appendChild(b);
+});
+
+const palette = document.getElementById("palette");
+Object.keys(ITEMS).forEach(k => {
+  const b = document.createElement("button");
+  b.className = "tile"; b.type = "button";
+  b.innerHTML = preview(k) + `<span>${ITEMS[k].label}</span>`;
+  b.onclick = () => addItem(k);
+  palette.appendChild(b);
+});
+
+function renderPanels() {
+  layersBox.querySelectorAll(".tile").forEach(t => {
+    const i = state.layers.indexOf(t.dataset.key);
+    t.classList.toggle("on", i >= 0);
+    t.querySelector("span").textContent = LAYERS[t.dataset.key].label + (i >= 0 ? ` ${i + 1}` : "");
+  });
+  const it = state.items.find(i => i.id === selectedId);
+  ["bigger", "smaller", "flip", "front", "remove"].forEach(id => document.getElementById(id).disabled = !it);
+  document.getElementById("seltext").textContent = it ? `고른 것: ${ITEMS[it.type].label}` : "병 안의 식물을 눌러서 골라 주세요.";
+  document.getElementById("count").textContent = `지금 병 속에 ${state.items.length}개가 있어요.`;
+}
+
+function addItem(type, x, y, scale) {
+  const gy = groundY();
+  const it = {
+    id: nextId++, type,
+    x: x ?? 100 + Math.random() * 200,
+    y: y ?? gy + 2 + Math.random() * 10,
+    scale: scale ?? 1, flip: Math.random() < 0.5,
+  };
+  state.items.push(it);
+  selectedId = it.id;
+  render();
+}
+
+/* ---------- 끌기 ---------- */
+let drag = null;
+function svgPoint(e) {
+  const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
+  return p.matrixTransform(svg.getScreenCTM().inverse());
+}
+svg.addEventListener("pointerdown", e => {
+  const node = e.target.closest(".item");
+  if (!node) { selectedId = null; drawSelection(); renderPanels(); return; }
+  const id = +node.dataset.id, it = state.items.find(i => i.id === id), p = svgPoint(e);
+  selectedId = id;
+  drag = { it, dx: p.x - it.x, dy: p.y - it.y, node };
+  svg.setPointerCapture(e.pointerId);
+  drawSelection(); renderPanels();
+});
+svg.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const p = svgPoint(e);
+  drag.it.x = Math.max(JAR.left + 6, Math.min(JAR.right - 6, p.x - drag.dx));
+  drag.it.y = Math.max(110, Math.min(JAR.bottom - 4, p.y - drag.dy));
+  const sx = drag.it.flip ? -drag.it.scale : drag.it.scale;
+  drag.node.setAttribute("transform", `translate(${drag.it.x},${drag.it.y}) scale(${sx},${drag.it.scale})`);
+  drawSelection();
+});
+function endDrag() { if (drag) { drag = null; save(); } }
+svg.addEventListener("pointerup", endDrag);
+svg.addEventListener("pointercancel", endDrag);
+
+/* ---------- 버튼 ---------- */
+function withSel(fn) { const it = state.items.find(i => i.id === selectedId); if (it) { fn(it); render(); } }
+document.getElementById("bigger").onclick = () => withSel(it => it.scale = Math.min(2.2, +(it.scale + 0.15).toFixed(2)));
+document.getElementById("smaller").onclick = () => withSel(it => it.scale = Math.max(0.4, +(it.scale - 0.15).toFixed(2)));
+document.getElementById("flip").onclick = () => withSel(it => it.flip = !it.flip);
+document.getElementById("front").onclick = () => withSel(it => { state.items = state.items.filter(i => i !== it); state.items.push(it); });
+document.getElementById("remove").onclick = () => withSel(it => { state.items = state.items.filter(i => i !== it); selectedId = null; });
+document.addEventListener("keydown", e => {
+  if ((e.key === "Delete" || e.key === "Backspace") && selectedId != null && document.activeElement.tagName !== "INPUT") {
+    e.preventDefault(); document.getElementById("remove").click();
+  }
+});
+
+document.getElementById("night").onclick = () => { state.night = !state.night; render(); };
+document.getElementById("clear").onclick = () => { state.items = []; selectedId = null; render(); };
+document.getElementById("random").onclick = () => {
+  const keys = Object.keys(LAYERS);
+  state.layers = ["pebble", "charcoal", "soil"].concat(Math.random() < .6 ? ["moss"] : []);
+  if (Math.random() < .4) state.layers.splice(1, 0, keys[Math.random() < .5 ? 1 : 5]);
+  state.items = []; selectedId = null;
+  const gy = groundY(), types = Object.keys(ITEMS), n = 6 + Math.floor(Math.random() * 4);
+  const picks = [];
+  for (let i = 0; i < n; i++) picks.push(types[Math.floor(Math.random() * types.length)]);
+  picks.sort((a, b) => (["fern", "cactus", "flower"].includes(a) ? -1 : 1));
+  picks.forEach((t, i) => state.items.push({
+    id: nextId++, type: t, x: 95 + (i + Math.random() * .8) * (210 / n), y: gy + 2 + Math.random() * 12,
+    scale: +(0.75 + Math.random() * 0.5).toFixed(2), flip: Math.random() < .5,
+  }));
+  state.items.sort((a, b) => a.y - b.y);
+  render();
+};
+
+const nameInput = document.getElementById("name");
+nameInput.addEventListener("input", () => { state.name = nameInput.value; render(); });
+
+document.getElementById("save").onclick = () => {
+  const prev = selectedId; selectedId = null; drawSelection();
+  const clone = svg.cloneNode(true);
+  clone.setAttribute("xmlns", NS); clone.setAttribute("width", 800); clone.setAttribute("height", 960);
+  clone.querySelectorAll(".firefly").forEach(f => f.removeAttribute("class"));
+  const data = new XMLSerializer().serializeToString(clone);
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement("canvas"); c.width = 800; c.height = 960;
+    c.getContext("2d").drawImage(img, 0, 0, 800, 960);
+    const a = document.createElement("a");
+    a.download = (state.name.trim() || "my-terrarium") + ".png";
+    a.href = c.toDataURL("image/png"); a.click();
+    selectedId = prev; drawSelection();
+  };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(data);
+};
+
+/* ---------- 시작 ---------- */
+let firstVisit = true;
+try { firstVisit = !localStorage.getItem("terrarium-v1"); } catch (e) {}
+load();
+if (!state.items.length && firstVisit) {
+  const gy = groundY();
+  [["fern", 135, 1.1], ["rock", 230, 0.9], ["succulent", 270, 0.9], ["mushroom", 190, 0.8], ["mossball", 300, 0.8]]
+    .forEach(([t, x, s]) => state.items.push({ id: nextId++, type: t, x, y: gy + 6, scale: s, flip: false }));
+}
+nameInput.value = state.name;
+render();
+</script>
+</body>
+</html>
